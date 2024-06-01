@@ -21,7 +21,7 @@ client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.proxyapi.ru/openai
 SYSTEM_PROMPT = ("Вы помощник, который помогает проверять правильность ответов. "
                  "Ваш ответ должен быть строго на русском языке, за исключением специальной лексики и терминов. "
                  "Ответ должен состоять из двух частей: "
-                 "Первая часть - строго 'правильно' или 'неправильно', "
+                 "Первая часть - строго 'Правильно' или 'Неправильно', "
                  "Вторая часть - комментарий к ответу.")
 
 
@@ -79,14 +79,14 @@ def check_answer_with_openai(question, user_answer):
         logging.info(f"OpenAI response: {gpt_answer_content}")
 
         # Разделяем ответ на две части
-        parts = gpt_answer_content.split('\n', 1)
-        correctness = parts[0].strip().lower()
+        parts = gpt_answer_content.split('.', 1)
+        correctness = parts[0].strip()
         explanation = parts[1].strip() if len(parts) > 1 else ""
 
         return correctness, explanation
     except Exception as e:
         logging.error(f"Error checking answer with OpenAI: {e}")
-        return "ошибка", "Ошибка при обращении к API"
+        return "Ошибка", "Ошибка при обращении к API"
 
 
 # Хэндлер для команды /start
@@ -132,12 +132,12 @@ async def handle_answer(message: Message):
 
     conn = connect_db()
     c = conn.cursor()
-    if correctness == "правильно":
+    if correctness == "Правильно":
         c.execute(
             'UPDATE users SET correct_answers = correct_answers + 1, total_answers = total_answers + 1 WHERE telegram_id=?',
             (telegram_id,))
         await message.reply(f"Правильно! {explanation}")
-    elif correctness == "неправильно":
+    elif correctness == "Неправильно":
         c.execute('UPDATE users SET total_answers = total_answers + 1 WHERE telegram_id=?', (telegram_id,))
         await message.reply(f"Неправильно. {explanation}")
     else:
