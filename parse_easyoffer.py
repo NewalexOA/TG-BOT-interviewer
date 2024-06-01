@@ -16,8 +16,11 @@ def read_table(html):
             question_text = question_text_element.text.strip()
             category_element = row.find_all('td')[2]
             category_text = category_element.text.strip()
-            questions.append((question_text, category_text))
-            print(f"Question: {question_text}, Category: {category_text}")
+            # Пример правильного ответа, необходимо обновить в зависимости от структуры HTML
+            correct_answer_element = row.find('td', class_='correct-answer')
+            correct_answer = correct_answer_element.text.strip() if correct_answer_element else "N/A"
+            questions.append((question_text, category_text, correct_answer))
+            print(f"Question: {question_text}, Category: {category_text}, Answer: {correct_answer}")
         except Exception as e:
             print(f"Ошибка при парсинге строки: {e}")
 
@@ -41,8 +44,8 @@ def create_database(questions):
     c = conn.cursor()
     c.execute('DROP TABLE IF EXISTS questions')  # Удаление существующей таблицы
     c.execute('''CREATE TABLE questions
-                 (id INTEGER PRIMARY KEY, question TEXT, category TEXT)''')
-    c.executemany('INSERT INTO questions (question, category) VALUES (?, ?)', questions)
+                 (id INTEGER PRIMARY KEY, question TEXT, category TEXT, correct_answer TEXT)''')
+    c.executemany('INSERT INTO questions (question, category, correct_answer) VALUES (?, ?, ?)', questions)
     conn.commit()
     conn.close()
 
