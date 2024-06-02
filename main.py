@@ -19,7 +19,7 @@ router = Router()
 dp.include_router(router)
 
 # Инициализация модели Whisper
-model = whisper.load_model("base")
+model = whisper.load_model("medium", download_root="models")
 
 
 @router.message(Command("start"))
