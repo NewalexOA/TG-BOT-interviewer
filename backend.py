@@ -155,3 +155,15 @@ def check_answer_with_openai(question, user_answer):
     except Exception as e:
         logging.error(f"Error checking answer with OpenAI: {e}")
         return "Ошибка", "Ошибка при обращении к API"
+
+def calculate_user_stats(telegram_id):
+    conn = connect_db()
+    c = conn.cursor()
+    c.execute('''SELECT COUNT(*), SUM(correct) FROM answered_questions WHERE telegram_id = ?''', (telegram_id,))
+    total_answers, correct_answers = c.fetchone() or (0, 0)
+    conn.close()
+    if total_answers > 0:
+        correct_percentage = (correct_answers / total_answers) * 100
+    else:
+        correct_percentage = 0
+    return total_answers, correct_percentage

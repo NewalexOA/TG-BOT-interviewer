@@ -2,11 +2,11 @@ import logging
 import asyncio
 import os
 import ffmpeg
-from aiogram import Bot, Dispatcher, Router
+from aiogram import Bot, Dispatcher, Router, types
 from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
-from backend import register_user, get_random_question, update_user_stats, check_answer_with_openai
+from backend import register_user, get_random_question, update_user_stats, check_answer_with_openai, calculate_user_stats
 from config import API_TOKEN, ANSWER_TIMEOUT
 import whisper
 
@@ -25,6 +25,30 @@ model = whisper.load_model("medium", download_root="models")
 
 # Глобальный словарь для хранения данных о вопросах пользователя
 bot_data = {}
+
+# Функция для создания основного меню
+def main_menu():
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    question_button = types.InlineKeyboardButton("Получить вопрос", callback_data="get_question")
+    stats_button = types.InlineKeyboardButton("Статистика", callback_data="check_stats")
+    markup.add(question_button, stats_button)
+    return markup
+
+@router.message(Command("menu"))
+async def show_menu(message: types.Message):
+    await message.answer("Выберите действие:", reply_markup=main_menu())
+
+@router.callback_query(lambda c: c.data == "get_question")
+async def handle_get_question(callback_query: types.CallbackQuery):
+    await cmd_question(callback_query.message)
+
+@router.callback_query(lambda c: c.data == "check_stats")
+async def handle_check_stats(callback_query: types.CallbackQuery):
+    telegram_id = callback_query.from_user.id
+    total_answers, correct_percentage = calculate_user_stats(telegram_id)
+    response_message = f"Ваша статистика:\nВсего ответов: {total_answers}\nПроцент правильных ответов: {correct_percentage:.2f}%"
+    await bot.send_message(telegram_id, response_message)
+    await callback_query.answer()
 
 async def stop_receiving_answers(user_id):
     if user_id in bot_data:
@@ -70,6 +94,13 @@ async def handle_voice(message: Message):
     await handle_answer(message, user_answer)
     os.remove(voice_file)
     os.remove(wav_file)
+
+@router.message(Command("stats"))
+async def cmd_stats(message: Message):
+    telegram_id = message.from_user.id
+    total_answers, correct_percentage = calculate_user_stats(telegram_id)
+    response_message = f"Ваша статистика:\nВсего ответов: {total_answers}\nПроцент правильных ответов: {correct_percentage:.2f}%"
+    await message.answer(response_message)
 
 @router.message(lambda message: message.text is not None)
 async def handle_text_message(message: Message):
