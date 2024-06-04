@@ -91,7 +91,7 @@ async def handle_voice(message: Message):
     wav_file = f"voice_{message.from_user.id}.wav"
     ffmpeg.input(voice_file).output(wav_file).run(overwrite_output=True)
 
-    client = OpenAI(api_key = 'sk-SeA46H6qerPo06VdVK2HxMabiqq7maWT')
+    client = OpenAI(api_key = WHISPER_API_TOKEN)
 
     # Отправка файла на сервер OpenAI для транскрипции
     try:
