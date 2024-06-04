@@ -7,8 +7,9 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
 from backend import register_user, get_random_question, update_user_stats, check_answer_with_openai, calculate_user_stats
-from config import API_TOKEN, ANSWER_TIMEOUT
-import whisper
+from config import API_TOKEN, ANSWER_TIMEOUT, WHISPER_API_TOKEN
+from openai import OpenAI
+
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -20,18 +21,16 @@ dp = Dispatcher(storage=storage)
 router = Router()
 dp.include_router(router)
 
-# Инициализация Whisper модели
-model = whisper.load_model("medium", download_root="models")
 
 # Глобальный словарь для хранения данных о вопросах пользователя
 bot_data = {}
 
 # Функция для создания основного меню
 def main_menu():
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    question_button = types.InlineKeyboardButton("Получить вопрос", callback_data="get_question")
-    stats_button = types.InlineKeyboardButton("Статистика", callback_data="check_stats")
-    markup.add(question_button, stats_button)
+    markup = types.InlineKeyboardMarkup(inline_keyboard=[])
+    question_button = types.InlineKeyboardButton(text="Получить вопрос", callback_data="get_question")
+    stats_button = types.InlineKeyboardButton(text="Статистика", callback_data="check_stats")
+    markup.inline_keyboard.append([question_button, stats_button])
     return markup
 
 @router.message(Command("menu"))
@@ -59,8 +58,8 @@ async def stop_receiving_answers(user_id):
 async def cmd_start(message: Message):
     logging.info(f"Регистрация пользователя с telegram_id: {message.from_user.id}")
     register_user(message.from_user.id)
-    await message.answer("Привет! Я помогу тебе подготовиться к собеседованию по Python. Вы успешно зарегистрированы! Готов начать?")
-
+    welcome_message = "Привет! Я помогу тебе подготовиться к собеседованию по Python. Вы успешно зарегистрированы! Готов начать?"
+    await message.answer(welcome_message, reply_markup=main_menu())
 
 @router.message(Command("question"))
 async def cmd_question(message: Message):
@@ -87,13 +86,33 @@ async def handle_voice(message: Message):
     file_path = file_info.file_path
     voice_file = f"voice_{message.from_user.id}.ogg"
     await bot.download_file(file_path, voice_file)
+
+    # Преобразование аудио в формат, поддерживаемый API
     wav_file = f"voice_{message.from_user.id}.wav"
     ffmpeg.input(voice_file).output(wav_file).run(overwrite_output=True)
-    result = model.transcribe(wav_file)
-    user_answer = result['text']
-    await handle_answer(message, user_answer)
-    os.remove(voice_file)
-    os.remove(wav_file)
+
+    client = OpenAI(api_key = 'sk-SeA46H6qerPo06VdVK2HxMabiqq7maWT')
+
+    # Отправка файла на сервер OpenAI для транскрипции
+    try:
+        with open(wav_file, 'rb') as audio_file:
+            response = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+
+        if response:
+            user_answer = response['text']
+            await handle_answer(message, user_answer)
+        else:
+            logging.error(f"Ошибка транскрипции: {response}")
+            await message.answer("Произошла ошибка при распознавании аудио. Пожалуйста, попробуйте еще раз.")
+    except Exception as e:
+        logging.error(f"Произошла ошибка при обработке аудио: {e}")
+        await message.answer("Произошла ошибка при распознавании аудио. Пожалуйста, попробуйте еще раз.")
+    finally:
+        os.remove(voice_file)
+        os.remove(wav_file)
 
 @router.message(Command("stats"))
 async def cmd_stats(message: Message):
@@ -117,4 +136,3 @@ async def handle_answer(message: Message, user_answer: str):
 
 if __name__ == '__main__':
     dp.run_polling(bot)  # Укажите объект bot при вызове метода run_polling
-
