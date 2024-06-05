@@ -7,8 +7,9 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
 from backend import register_user, get_random_question, update_user_stats, check_answer_with_openai, calculate_user_stats
-from config import API_TOKEN, ANSWER_TIMEOUT, WHISPER_API_TOKEN
+from config import API_TOKEN, ANSWER_TIMEOUT, OPENAI_API_KEY
 from openai import OpenAI
+import json
 
 
 # Настройка логирования
@@ -91,7 +92,7 @@ async def handle_voice(message: Message):
     wav_file = f"voice_{message.from_user.id}.wav"
     ffmpeg.input(voice_file).output(wav_file).run(overwrite_output=True)
 
-    client = OpenAI(api_key = WHISPER_API_TOKEN)
+    client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.proxyapi.ru/openai/v1", timeout=ANSWER_TIMEOUT)
 
     # Отправка файла на сервер OpenAI для транскрипции
     try:
@@ -102,7 +103,14 @@ async def handle_voice(message: Message):
             )
 
         if response:
-            user_answer = response['text']
+            response_data = response.json()
+            logging.info(f"Response data: {response_data}")  # Печать полного ответа для отладки
+
+            # Убедимся, что response_data является словарем, а не строкой
+            if isinstance(response_data, str):
+                response_data = json.loads(response_data)
+
+            user_answer = response_data['text']
             await handle_answer(message, user_answer)
         else:
             logging.error(f"Ошибка транскрипции: {response}")
@@ -113,6 +121,7 @@ async def handle_voice(message: Message):
     finally:
         os.remove(voice_file)
         os.remove(wav_file)
+
 
 @router.message(Command("stats"))
 async def cmd_stats(message: Message):
@@ -125,12 +134,13 @@ async def cmd_stats(message: Message):
 async def handle_text_message(message: Message):
     await handle_answer(message, message.text)
 
-async def handle_answer(message: Message, user_answer: str):
+async def handle_answer(message: types.Message, user_answer: str):
     user_id = message.from_user.id
     if user_id in bot_data:
         question_id, question_text = bot_data[user_id]
         correctness, explanation = check_answer_with_openai(question_text, user_answer)
-        await message.answer(f"{correctness}\n{explanation}")
+        formatted_explanation = f"{correctness}\n\n```\n{explanation}\n```"
+        await message.answer(formatted_explanation, parse_mode='Markdown')
         update_user_stats(user_id, question_id, correctness.lower() == "правильно")
         del bot_data[user_id]
 

@@ -135,8 +135,9 @@ def update_user_stats(telegram_id, question_id, correct):
 # Функция для проверки ответа с использованием OpenAI
 def check_answer_with_openai(question, user_answer):
     try:
+        client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.proxyapi.ru/openai/v1", timeout=30)
         completion = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": f"Вопрос: {question}"},
