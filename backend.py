@@ -115,7 +115,6 @@ def get_random_question(telegram_id):
             logging.info("Не удалось выбрать новый вопрос")
         return question
 
-
 def update_user_stats(telegram_id, question_id, correct):
     logging.info(
         f"Входящие данные в фунции update_user_stats - telegram_id:{telegram_id}, question_id: {question_id}, correct: {correct}")
@@ -141,7 +140,7 @@ def update_user_stats(telegram_id, question_id, correct):
     except Exception as e:
         logging.error(f"Ошибка при обновлении статистики пользователя с telegram_id {telegram_id}: {e}")
 
-
+# Функция для проверки ответа с использованием OpenAI
 def check_answer_with_openai(question, user_answer):
     try:
         client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.proxyapi.ru/openai/v1", timeout=30)
