@@ -45,6 +45,7 @@ def register_user(telegram_id):
         c.execute('INSERT INTO users (telegram_id, correct_answers, total_answers) VALUES (?, ?, ?)',
                   (telegram_id, 0, 0))
         conn.commit()
+        logging.info(f"Пользователь с telegram_id {telegram_id} успешно зарегистрирован.")
     conn.close()
 
 
@@ -114,23 +115,30 @@ def get_random_question(telegram_id):
             logging.info("Не удалось выбрать новый вопрос")
         return question
 
-
 def update_user_stats(telegram_id, question_id, correct):
-    with connect_db() as conn:
-        c = conn.cursor()
-        c.execute('SELECT correct_answers, total_answers FROM users WHERE telegram_id = ?', (telegram_id,))
-        user = c.fetchone()
-        if user:
-            correct_answers, total_answers = user
-            if correct:
-                correct_answers += 1
-            total_answers += 1
-            c.execute('UPDATE users SET correct_answers = ?, total_answers = ? WHERE telegram_id = ?',
-                      (correct_answers, total_answers, telegram_id))
-            c.execute('INSERT INTO answered_questions (telegram_id, question_id, correct) VALUES (?, ?, ?)',
-                      (telegram_id, question_id, correct))
-            conn.commit()
-
+    logging.info(
+        f"Входящие данные в фунции update_user_stats - telegram_id:{telegram_id}, question_id: {question_id}, correct: {correct}")
+    try:
+        with connect_db() as conn:
+            c = conn.cursor()
+            c.execute('SELECT correct_answers, total_answers FROM users WHERE telegram_id = ?', (telegram_id,))
+            user = c.fetchone()
+            if user:
+                correct_answers, total_answers = user
+                if correct:
+                    correct_answers += 1
+                total_answers += 1
+                c.execute('UPDATE users SET correct_answers = ?, total_answers = ? WHERE telegram_id = ?',
+                          (correct_answers, total_answers, telegram_id))
+                c.execute('INSERT INTO answered_questions (telegram_id, question_id, correct) VALUES (?, ?, ?)',
+                          (telegram_id, question_id, int(correct)))
+                conn.commit()
+                logging.info(
+                    f"Статистика пользователя с telegram_id {telegram_id} обновлена: {correct_answers}/{total_answers} правильных ответов.")
+            else:
+                logging.error(f"Пользователь с telegram_id {telegram_id} не найден в базе данных.")
+    except Exception as e:
+        logging.error(f"Ошибка при обновлении статистики пользователя с telegram_id {telegram_id}: {e}")
 
 # Функция для проверки ответа с использованием OpenAI
 def check_answer_with_openai(question, user_answer):
@@ -145,17 +153,18 @@ def check_answer_with_openai(question, user_answer):
             ]
         )
         gpt_answer_content = completion.choices[0].message.content.strip()
-        logging.info(f"OpenAI response: {gpt_answer_content}")
 
         # Разделяем ответ на две части
         parts = gpt_answer_content.split('.', 1)
         correctness = parts[0].strip()
+        logging.info(f"OpenAI response: {correctness}")
         explanation = parts[1].strip() if len(parts) > 1 else ""
 
         return correctness, explanation
     except Exception as e:
         logging.error(f"Error checking answer with OpenAI: {e}")
         return "Ошибка", "Ошибка при обращении к API"
+
 
 def calculate_user_stats(telegram_id):
     conn = connect_db()
@@ -167,4 +176,6 @@ def calculate_user_stats(telegram_id):
         correct_percentage = (correct_answers / total_answers) * 100
     else:
         correct_percentage = 0
+    logging.info(
+        f"Статистика пользователя с telegram_id {telegram_id}: {total_answers} ответов, {correct_percentage:.2f}% правильных.")
     return total_answers, correct_percentage
