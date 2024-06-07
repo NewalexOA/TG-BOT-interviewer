@@ -25,6 +25,7 @@ dp.include_router(router)
 
 # Глобальный словарь для хранения данных о вопросах пользователя
 bot_data = {}
+tasks = {}
 
 
 # Функция для экранирования специальных символов в MarkdownV2
@@ -60,7 +61,8 @@ async def handle_check_stats(callback_query: CallbackQuery):
     telegram_id = callback_query.from_user.id
     logging.info(f"Проверка статистики для пользователя с telegram_id: {telegram_id}")
     total_answers, correct_percentage = calculate_user_stats(telegram_id)
-    response_message = f"Ваша статистика:\nВсего ответов: {total_answers}\nПроцент правильных ответов: {correct_percentage:.2f}%"
+    response_message = (f"Ваша статистика:\nВсего ответов: {total_answers}"
+                        f"\nПроцент правильных ответов: {correct_percentage:.2f}%")
     response_message = escape_markdown_v2(response_message)
     await bot.send_message(telegram_id, response_message, parse_mode='MarkdownV2')
     await callback_query.answer()
@@ -82,7 +84,8 @@ async def cmd_start(message: Message):
     user_id = message.from_user.id
     logging.info(f"Регистрация пользователя с telegram_id: {user_id}")
     register_user(user_id)
-    welcome_message = "Привет! Я помогу тебе подготовиться к собеседованию по Python. Вы успешно зарегистрированы! Готов начать?"
+    welcome_message = ("Привет! Я помогу тебе подготовиться к собеседованию по Python. "
+                       "Вы успешно зарегистрированы! Готов начать?")
     welcome_message = escape_markdown_v2(welcome_message)
     await message.answer(welcome_message, reply_markup=main_menu(), parse_mode='MarkdownV2')
 
@@ -104,7 +107,8 @@ async def cmd_question(message: Message, user_id: int = None):
         await message.answer(response_message)
         if not message.from_user.is_bot:
             logging.info(f"Установка таймера для пользователя с telegram_id: {user_id}")
-            asyncio.create_task(timer_task(user_id), name=f"timer_{user_id}")
+            task = asyncio.create_task(timer_task(user_id), name=f"timer_{user_id}")
+            tasks[user_id] = task
     else:
         logging.error(f"Не удалось получить вопрос для пользователя с telegram_id: {user_id}")
 
@@ -114,6 +118,7 @@ async def timer_task(user_id):
     await asyncio.sleep(ANSWER_TIMEOUT)
     logging.info(f"Таймер истек для пользователя {user_id}")
     await stop_receiving_answers(user_id)
+    tasks.pop(user_id, None)
 
 
 @router.message(lambda message: message.voice is not None)
@@ -147,8 +152,13 @@ async def handle_voice(message: Message):
             if isinstance(response_data, str):
                 response_data = json.loads(response_data)
 
-            user_answer = response_data['text']
-            await handle_answer(message, user_answer)
+            if isinstance(response_data, dict) and 'text' in response_data:
+                user_answer = response_data['text']
+                await handle_answer(message, user_answer)
+            else:
+                logging.error(f"Некорректный формат данных: {response_data}")
+                await message.answer("Произошла ошибка при распознавании аудио. Пожалуйста, попробуйте еще раз.",
+                                     parse_mode='MarkdownV2')
         else:
             logging.error(f"Ошибка транскрипции: {response}")
             await message.answer("Произошла ошибка при распознавании аудио. Пожалуйста, попробуйте еще раз.",
@@ -167,7 +177,8 @@ async def cmd_stats(message: Message):
     user_id = message.from_user.id
     logging.info(f"Проверка статистики для пользователя с telegram_id: {user_id}")
     total_answers, correct_percentage = calculate_user_stats(user_id)
-    response_message = f"Ваша статистика:\nВсего ответов: {total_answers}\nПроцент правильных ответов: {correct_percentage:.2f}%"
+    response_message = (f"Ваша статистика:\nВсего ответов: {total_answers}"
+                        f"\nПроцент правильных ответов: {correct_percentage:.2f}%")
     response_message = escape_markdown_v2(response_message)
     await message.answer(response_message, parse_mode='MarkdownV2')
 
