@@ -29,7 +29,8 @@ bot_data = {}
 
 # Функция для экранирования специальных символов в MarkdownV2
 def escape_markdown_v2(text: str) -> str:
-    return re.sub(r'([_*\[\]()~`>#+\-=|{}.!\\])', r'\\\1', text)
+    escape_chars = r'\_*[]()~`>#+-=|{}.!'
+    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
 
 # Функция для создания основного меню
@@ -69,8 +70,11 @@ async def stop_receiving_answers(user_id):
     if user_id in bot_data:
         del bot_data[user_id]
         logging.info(f"Остановка получения ответов для пользователя с telegram_id: {user_id}")
-        await bot.send_message(user_id, "Время на ответ истекло. Введите /question, чтобы получить новый вопрос.",
-                               parse_mode='MarkdownV2')
+        try:
+            await bot.send_message(user_id, "Время на ответ истекло. Введите /question, чтобы получить новый вопрос.",
+                                   parse_mode='MarkdownV2')
+        except Exception as e:
+            logging.error(f"Ошибка при отправке сообщения об истечении времени для пользователя {user_id}: {e}")
 
 
 @router.message(Command("start"))
@@ -92,8 +96,12 @@ async def cmd_question(message: Message, user_id: int = None):
     if question:
         question_id, question_text, category = question
         bot_data[user_id] = (question_id, question_text)
-        response_message = f"Вопрос: {escape_markdown_v2(question_text)}\nКатегория: {escape_markdown_v2(category)}"
-        await message.answer(response_message, parse_mode='MarkdownV2')
+        response_message = (
+            f"Вопрос: {question_text}\n"
+            f"Категория: {category}\n"
+            "У вас 2 минуты на ответ."
+        )
+        await message.answer(response_message)
         if not message.from_user.is_bot:
             logging.info(f"Установка таймера для пользователя с telegram_id: {user_id}")
             asyncio.create_task(timer_task(user_id), name=f"timer_{user_id}")
@@ -183,11 +191,7 @@ async def handle_answer(message: types.Message, user_answer: str):
         formatted_explanation = f"*{escape_markdown_v2(correctness)}*\n\n{escape_markdown_v2(explanation)}"
         await message.answer(formatted_explanation, parse_mode='MarkdownV2')
 
-        if correctness.lower() == "правильно":
-            correct = 1
-        else:
-            correct = 1
-        update_user_stats(user_id, question_id, correct)
+        update_user_stats(user_id, question_id, correctness.lower() == "правильно")
         del bot_data[user_id]
         logging.info(f"Данные о вопросе удалены для пользователя с telegram_id: {user_id}")
     else:
@@ -196,6 +200,4 @@ async def handle_answer(message: types.Message, user_answer: str):
 
 if __name__ == '__main__':
     logging.info(f"ID бота: {bot.id}")
-    dp.run_polling(bot)  # Укажите объект bot при вызове метода run_pollинг
-
-# TODO Добавить функцию обнуления статистики
+    dp.run_polling(bot)  # Укажите объект bot при вызове метода run_polling
