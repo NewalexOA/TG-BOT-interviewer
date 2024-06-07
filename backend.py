@@ -4,9 +4,6 @@ import random
 from openai import OpenAI
 from config import SYSTEM_PROMPT, OPENAI_API_KEY
 
-# Инициализация OpenAI
-client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.proxyapi.ru/openai/v1", timeout=30)
-
 
 def connect_db():
     return sqlite3.connect('users.db')
@@ -19,8 +16,12 @@ def connect_questions_db():
 def create_user_table():
     conn = connect_db()
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (id INTEGER PRIMARY KEY, telegram_id INTEGER UNIQUE, correct_answers INTEGER, total_answers INTEGER)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY, 
+                telegram_id INTEGER UNIQUE, 
+                correct_answers INTEGER, 
+                total_answers INTEGER)
+            ''')
     conn.commit()
     conn.close()
 
@@ -115,9 +116,11 @@ def get_random_question(telegram_id):
             logging.info("Не удалось выбрать новый вопрос")
         return question
 
+
 def update_user_stats(telegram_id, question_id, correct):
     logging.info(
-        f"Входящие данные в функции update_user_stats - telegram_id:{telegram_id}, question_id: {question_id}, correct: {correct}")
+        f"Входящие данные в функции update_user_stats - "
+        f"telegram_id:{telegram_id}, question_id: {question_id}, correct: {correct}")
     try:
         with connect_db() as conn:
             c = conn.cursor()
@@ -134,11 +137,13 @@ def update_user_stats(telegram_id, question_id, correct):
                           (telegram_id, question_id, int(correct)))
                 conn.commit()
                 logging.info(
-                    f"Статистика пользователя с telegram_id {telegram_id} обновлена: {correct_answers}/{total_answers} правильных ответов.")
+                    f"Статистика пользователя с telegram_id {telegram_id} обновлена: "
+                    f"{correct_answers}/{total_answers} правильных ответов.")
             else:
                 logging.error(f"Пользователь с telegram_id {telegram_id} не найден в базе данных.")
     except Exception as e:
         logging.error(f"Ошибка при обновлении статистики пользователя с telegram_id {telegram_id}: {e}")
+
 
 # Функция для проверки ответа с использованием OpenAI
 def check_answer_with_openai(question, user_answer):
@@ -177,5 +182,6 @@ def calculate_user_stats(telegram_id):
     else:
         correct_percentage = 0
     logging.info(
-        f"Статистика пользователя с telegram_id {telegram_id}: {total_answers} ответов, {correct_percentage:.2f}% правильных.")
+        f"Статистика пользователя с telegram_id {telegram_id}: {total_answers} ответов, "
+        f"{correct_percentage:.2f}% правильных.")
     return total_answers, correct_percentage
