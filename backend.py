@@ -117,7 +117,7 @@ def get_random_question(telegram_id):
 
 def update_user_stats(telegram_id, question_id, correct):
     logging.info(
-        f"Входящие данные в фунции update_user_stats - telegram_id:{telegram_id}, question_id: {question_id}, correct: {correct}")
+        f"Входящие данные в функции update_user_stats - telegram_id:{telegram_id}, question_id: {question_id}, correct: {correct}")
     try:
         with connect_db() as conn:
             c = conn.cursor()
